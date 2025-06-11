@@ -1,209 +1,105 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User, AuthContextType } from '../types';
 
-type User = {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  preferences: {
-    currency: string;
-    theme: 'light' | 'dark' | 'system';
-    dateFormat: string;
-  };
-};
-
-type AuthContextType = {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  forgotPassword: (email: string) => Promise<void>;
-  resetPassword: (token: string, newPassword: string) => Promise<void>;
-  updateUserProfile: (data: Partial<User>) => Promise<void>;
-  updateUserPreferences: (preferences: Partial<User['preferences']>) => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
 
-// Mock user data for demo purposes
-const DEMO_USER: User = {
-  id: '1',
-  email: 'demo@example.com',
-  name: 'Demo User',
-  role: 'admin',
-  preferences: {
-    currency: 'USD',
-    theme: 'light',
-    dateFormat: 'MM/DD/YYYY',
-  },
-};
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Check for saved session on initial load
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const savedUser = localStorage.getItem('financeAppUser');
+    const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
-    setIsLoading(false);
+    setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
+  const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Simulate API call
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const foundUser = users.find((u: any) => u.email === email && u.password === password);
       
-      // For demo purposes, any email/password combination works
-      // In a real app, this would validate credentials against a backend
-      setUser(DEMO_USER);
-      localStorage.setItem('financeAppUser', JSON.stringify(DEMO_USER));
-      toast.success('Logged in successfully');
+      if (foundUser) {
+        const userObj: User = {
+          id: foundUser.id,
+          email: foundUser.email,
+          name: foundUser.name,
+          createdAt: new Date(foundUser.createdAt)
+        };
+        setUser(userObj);
+        localStorage.setItem('currentUser', JSON.stringify(userObj));
+        return true;
+      }
+      return false;
     } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Invalid email or password');
-      throw error;
-    } finally {
-      setIsLoading(false);
+      return false;
     }
   };
 
-  const signup = async (name: string, email: string, password: string) => {
-    setIsLoading(true);
+  const register = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
       
-      // Create a new user based on the demo user but with the provided details
+      // Check if user already exists
+      if (users.find((u: any) => u.email === email)) {
+        return false;
+      }
+
       const newUser = {
-        ...DEMO_USER,
-        name,
+        id: Date.now().toString(),
         email,
+        password,
+        name,
+        createdAt: new Date().toISOString()
       };
-      
-      setUser(newUser);
-      localStorage.setItem('financeAppUser', JSON.stringify(newUser));
-      toast.success('Account created successfully');
+
+      users.push(newUser);
+      localStorage.setItem('users', JSON.stringify(users));
+
+      const userObj: User = {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        createdAt: new Date(newUser.createdAt)
+      };
+      setUser(userObj);
+      localStorage.setItem('currentUser', JSON.stringify(userObj));
+      return true;
     } catch (error) {
-      console.error('Signup error:', error);
-      toast.error('Failed to create account');
-      throw error;
-    } finally {
-      setIsLoading(false);
+      return false;
     }
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('financeAppUser');
-    toast.success('Logged out successfully');
+    localStorage.removeItem('currentUser');
   };
 
-  const forgotPassword = async (email: string) => {
-    setIsLoading(true);
-    try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success(`Password reset link sent to ${email}`);
-    } catch (error) {
-      console.error('Password reset error:', error);
-      toast.error('Failed to send password reset email');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const resetPassword = async (token: string, newPassword: string) => {
-    setIsLoading(true);
-    try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success('Password has been reset successfully');
-    } catch (error) {
-      console.error('Password reset confirmation error:', error);
-      toast.error('Failed to reset password');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateUserProfile = async (data: Partial<User>) => {
-    setIsLoading(true);
-    try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (user) {
-        const updatedUser = { ...user, ...data };
-        setUser(updatedUser);
-        localStorage.setItem('financeAppUser', JSON.stringify(updatedUser));
-        toast.success('Profile updated successfully');
-      }
-    } catch (error) {
-      console.error('Profile update error:', error);
-      toast.error('Failed to update profile');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateUserPreferences = async (preferences: Partial<User['preferences']>) => {
-    setIsLoading(true);
-    try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (user) {
-        const updatedUser = {
-          ...user,
-          preferences: {
-            ...user.preferences,
-            ...preferences,
-          },
-        };
-        setUser(updatedUser);
-        localStorage.setItem('financeAppUser', JSON.stringify(updatedUser));
-        toast.success('Preferences updated successfully');
-      }
-    } catch (error) {
-      console.error('Preferences update error:', error);
-      toast.error('Failed to update preferences');
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const value = {
+  const value: AuthContextType = {
     user,
-    isAuthenticated: !!user,
-    isLoading,
     login,
-    signup,
+    register,
     logout,
-    forgotPassword,
-    resetPassword,
-    updateUserProfile,
-    updateUserPreferences,
+    loading
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
